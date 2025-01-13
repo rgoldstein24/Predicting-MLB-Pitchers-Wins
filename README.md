@@ -1,7 +1,7 @@
 # Predicting-MLB-Pitchers-Wins
 
 Research Question:
-What factors and statistical metrics can be used to predict the number of wins achieved by an MLB pitcher in a given season?
+- What factors and statistical metrics can be used to predict the number of wins achieved by an MLB pitcher in a given season?
 
 Goals:
 - Do wins matter?
