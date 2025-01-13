@@ -1,0 +1,511 @@
+---
+title: "STA 363 Final Project"
+author: "Ryan Goldstein"
+date: "2024-05-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+#### Importing Data
+
+```{r}
+library(readr)
+library(ISLR)
+library(ggplot2)
+MLB <- read_csv("MLB.csv")
+MLB <- data.frame(MLB)
+```
+
+#### Response Variable Analysis
+
+```{r}
+range(MLB$W) #Min and Max
+mean(MLB$W) #Mean
+median(MLB$W) #Median
+sum(MLB$W == 0) #Data points at min
+sum(MLB$W == 0)/nrow(MLB) #% of data at min
+sum(MLB$W == 20) #Data points at max
+sum(MLB$W == 20)/nrow(MLB) #% of data at max
+```
+
+#### EDA
+
+```{r}
+### Box Plots
+
+# Games Started 
+g1 <- ggplot(MLB, aes(x = "", y = GS)) +  #Create a single box plot
+  geom_boxplot(fill = "gray", color = "blue") +  #Customize box plot
+  labs(title = "Figure 0.2", y = "Games Started") +  #Labels
+  theme_minimal() #Theme 
+
+# Losses
+g2 <- ggplot(MLB, aes(x = "", y = L)) +  #Create a single box plot
+  geom_boxplot(fill = "gray", color = "blue") +  #Customize box plot
+  labs(title = "Figure 0.3", y = "Losses") +  #Labels
+  theme_minimal() #Theme 
+
+# Earned Runs
+g3 <- ggplot(MLB, aes(x = "", y = ER)) +  #Create a single box plot
+  geom_boxplot(fill = "gray", color = "blue") +  #Customize box plot
+  labs(title = "Figure 0.4", y = "Earned Runs Allowed") +  #Labels
+  theme_minimal() #Theme 
+  coord_cartesian(ylim = c(1, 10)) #limit the y axis to make it readable
+
+# ERA
+g4 <- ggplot(MLB, aes(x = "", y = ERA)) +  #Create a single box plot
+  geom_boxplot(fill = "gray", color = "blue") +  #Customize box plot
+  labs(title = "Figure 0.5", y = "Earned Run Average") +  #Labels
+  theme_minimal() #Theme 
+
+# Strikeouts
+g5 <- ggplot(MLB, aes(x = "", y = K)) +  #Create a single box plot
+  geom_boxplot(fill = "gray", color = "blue") +  #Customize box plot
+  labs(title = "Figure 0.6", y = "Strikeouts") +  #Labels
+  theme_minimal() #Theme 
+
+# Innings Pitched
+g6 <- ggplot(MLB, aes(x = "", y = IP)) +  #Create a single box plot
+  geom_boxplot(fill = "gray", color = "blue") +  #Customize box plot
+  labs(title = "Figure 0.7", y = "Innings Pitched") +  #Labels
+  theme_minimal() #Theme 
+  
+  # Wins
+g7 <- ggplot(MLB, aes(x = "", y = W)) +  #Create a single box plot
+  geom_boxplot(fill = "gray", color = "blue") +  #Customize box plot
+  labs(title = "Figure 0.1", y = "Wins") +  #Labels
+  theme_minimal() #Theme
+
+# Stack the four graphs
+gridExtra::grid.arrange(g7, g1, g2, g3, g4, g5, g6, ncol = 3)
+```
+
+
+```{r}
+# Features vs Response 
+
+# Games Started 
+g1 <- ggplot(MLB, aes(x=GS, y = W)) + #Create plot
+  geom_point(color = 'gray') + #Color of data points
+  labs(title = 'Figure 0.8', x = "Games Started", y = "Wins") + #Labels
+  stat_smooth(method = "lm", formula = y ~ x, se = FALSE) #Linear line of best fit
+
+# Losses
+g2 <- ggplot(MLB, aes(x=L, y = W)) +
+  geom_point(color = 'gray') +
+  labs(title = 'Figure 0.9', x = "Losses", y = "Wins") +
+  stat_smooth(method = "lm", formula = y ~ x, se = FALSE)
+
+# Earned Runs
+g3 <- ggplot(MLB, aes(x=ER, y = W)) +
+  geom_point(color = 'gray') +
+  labs(title = 'Figure 0.10', x = "Earned Runs Allowed", y = "Wins") +
+  stat_smooth(method = "lm", formula = y ~ x, se = FALSE)
+
+# ERA
+g4 <- ggplot(MLB, aes(x=ERA, y = W)) +
+  geom_point(color = 'gray') +
+  labs(title = 'Figure 0.11', x = "Earned Run Average", y = "Wins") +
+  stat_smooth(method = "lm", formula = y ~ x, se = FALSE) +
+  coord_cartesian(xlim = c(1, 10))
+
+# Strikeouts
+g5 <- ggplot(MLB, aes(x=K, y = W)) +
+  geom_point(color = 'gray') +
+  labs(title = 'Figure 0.12', x = "Strikeouts", y = "Wins") +
+  stat_smooth(method = "lm", formula = y ~ x, se = FALSE)
+
+# Innings Pitched
+g6 <- ggplot(MLB, aes(x=IP, y = W)) +
+  geom_point(color = 'gray') +
+  labs(title = 'Figure 0.13', x = "Innings Pitched", y = "Wins") +
+  stat_smooth(method = "lm", formula = y ~ x, se = FALSE)
+
+# Stack the four graphs
+gridExtra::grid.arrange(g1, g2, g3, g4, g5, g6, ncol = 3)
+```
+
+
+```{r}
+# Scale the features, excluding the response and the categorical variables.
+MLB[,-c(1, 2, 14)] <- scale(MLB[,-c(1, 2, 14)])
+MLB <- MLB[,-1]
+```
+
+```{r}
+# Check Correlation
+library(corrplot)
+M <-cor(cor(MLB[,-c(1, 13)]))
+
+corrplot(M, method="circle", type = "upper", title = "Figure 1.1")
+
+```
+
+```{r}
+# Create the design matrix
+XD <- model.matrix(W ~ . , data = MLB)[,-1]
+```
+
+#### Elastic Net 
+
+```{r}
+# Install Packages
+library(glmnet)
+library(Matrix)
+
+# Choose a sequence of values for alpha 
+alphaseq <- seq(from = 0, to = 1 , by =.01)
+
+storage <- data.frame("Alpha" = rep(NA,length(alphaseq)), "Lambda" = rep(NA,length(alphaseq)), "RMSE" = rep(NA,length(alphaseq)))
+
+a = 1 
+# Run 10-fold CV
+set.seed(100)
+for( i in alphaseq ){
+  cv.out <- cv.glmnet(XD, MLB[,"W"], alpha = i,lambda = seq(from = 0, to = .5, by = .001))
+  storage$Lambda[a] <- cv.out$lambda.min
+  storage$RMSE[a] <- sqrt(min(cv.out$cvm))
+  storage$Alpha[a] <- i
+  a = a + 1 
+}
+```
+
+### Table 1.1
++-------------+-------+--------+--------+
+|             | Alpha | Lambda | RMSE   |
++-------------+-------+--------+--------+
+| Elastic Net | 0.95  | 0.026  | 1.4725 |
++-------------+-------+--------+--------+
+
+```{r}
+storage[which.min(storage$RMSE),] #Find alpha and Lambda with the lowest RMSE
+```
+
+### Table 1.2
+```{r}
+# %%%%%%%%%%%%%%%%%%%%%%%%%%
+# Obtaining coefficients
+
+# Train Elastic Net
+elastic.final <- glmnet(XD, MLB[,"W"], alpha =.95 ,
+                      lambda = 0.026)
+
+# Store the coefficients
+elastic.betas <- as.numeric(coefficients(elastic.final))
+
+# Create a data frame
+# Create a data frame
+Betas <- data.frame("Elastic Net" = elastic.betas)
+
+rownames(Betas) <- c("Intercept", colnames(XD) )
+
+knitr::kable(Betas)
+```
+
+```{r}
+# Observed vs fitted values
+observed_values <- MLB$W
+fitted_values <- predict(elastic.final, newx = XD)
+
+plot(observed_values, fitted_values, xlab = "True Wins", ylab = "Predicted Wins", main = "Figure 1.2") #create the residual plot
+abline(lm(fitted_values ~ observed_values), col = "red") #line of best fit
+```
+
+#### Random Forest
+
+```{r}
+library(rpart)
+library(rattle)
+library(rpart.plot)
+library(tibble)
+library(bitops)
+
+#### Import Data for Forest
+MLB2 <- read_csv("MLB.csv")
+MLB2 <- MLB2[,-1] #remove player name as it is not of interest
+
+### Used to explain random forests
+# Bootstrap Sampling
+set.seed(363663)
+bootstrap <- MLB2[sample(nrow(MLB2), replace = TRUE), ]
+
+# How many rows are OOB
+uniqueBootstrap <- nrow(unique(bootstrap))
+nrow(MLB2) - uniqueBootstrap #OOB rows
+nrow(MLB2) #total rows
+```
+
+```{r}
+# Build tree from bootstrap sample
+tree1 <- rpart(W ~ ., data = MLB2)
+fancyRpartPlot(tree1, sub = "Figure 2.1")
+```
+
+```{r}
+compute_RMSE <- function(truth, predictions){
+
+  # Part 1
+  part1 <- truth - predictions
+  
+  #Part 2
+  part2 <- part1^2
+  
+  #Part 3: RSS 
+  part3 <- sum(part2)
+  
+  #Part4: MSE
+  part4 <- 1/length(predictions)*part3
+  
+  # Part 5:RMSE
+  sqrt(part4)
+}
+
+```
+
+```{r}
+# Load the library 
+library(randomForest)
+
+# Set a seed 
+set.seed(363663)
+
+# Grow a forest
+forest1 <- randomForest(W ~ ., data = MLB2, 
+                       ntree =  1000,
+                       importance = TRUE)
+
+compute_RMSE(MLB2$W, predict(forest1, newdata=MLB2))
+```
+
+```{r}
+# RMSE if we make all coefficients 0
+RSS <- sum((MLB2$W - mean(MLB2$W))^2)
+
+sqrt(RSS/nrow(MLB2))
+```
+
+```{r}
+# Percent Increase from Root node/Coefficients being zero
+(1.4725 - 3.3637)/3.3637
+(0.6492 - 3.3637)/3.3637
+```
+
+### Table 2.1
++------------------+--------+------------+
+| Method           | RMSE   | % Decrease |
++------------------+--------+------------+
+| Mean             | 3.3637 | 0.0%       |
++------------------+--------+------------+
+| Elastic Net      | 1.4725 | 56.22%     |
++------------------+--------+------------+
+| Random Forest    | 0.6492 | 80.70%     |
++------------------+--------+------------+
+
+```{r}
+# Print out the importance
+knitr::kable( randomForest::importance(forest1)[,1], col.names = "% Inc in MSE")
+```
+
+```{r}
+# Load the library to make the graph
+suppressMessages(library(lattice))
+
+# Plot the importance
+barchart(sort(randomForest::importance(forest1)[,1]),
+xlab = "Percent Increase in OOB MSE",
+main = "Figure 2.2") # Importance
+```
+
+```{r}
+barchart(sort(randomForest::importance(forest1)[,1])[-c(1:13)], #5 most important features
+         xlab = "Percent Increase in OOB MSE",
+         main = "Figure 2.3")
+```
+
+```{r}
+#Cut from my final presentation for timing, but still on the slide show
+barchart(sort(randomForest::importance(forest1)[,1])[-c(3:18)], #Features with negative importance
+         xlab = "Percent Increase in OOB MSE",
+         main = "Figure 2.4")
+```
+
+```{r}
+### Partial Plots
+
+MLB2 <- data.frame(MLB2)
+
+#Innings Pitched
+partialPlot( forest1, MLB2,
+             x.var = "IP",
+             xlab = "Innings Pitched",
+             ylab = "Wins",
+             main = "Figure 2.5") #Partial Plot
+```
+
+```{r}
+#Age
+partialPlot( forest1, MLB2,
+             x.var = "Age",
+             xlab = "Age",
+             ylab = "Wins",
+             main = "Figure 2.6")
+```
+
+```{r}
+# Observed vs fitted values
+observed_values <- MLB2$W
+fitted_values <- predict(forest1, newdata=MLB2)
+
+plot(observed_values, fitted_values, xlab = "True Wins", ylab = "Predicted Wins", main = "Figure 2.7") #create the residual plot
+abline(lm(fitted_values ~ observed_values), col = "red") #line of best fit
+```
+
+#### KNN
+
+```{r}
+#### Import Data for KNN
+MLB3 <- read_csv("MLB.csv")
+MLB3 <- MLB3[,-1] #remove player name as it is not of interest
+
+## Convert to categorical variables
+MLB3$Team <- as.factor(MLB3$Team)
+```
+
+```{r}
+#### Build the KNN Model
+
+knnGower <- function(trainX, testX, trainY, K){
+  
+  if(nrow(testX)==1){
+    # Convert the data
+    dataAll <- rbind(testX,trainX)
+    trainX <- model.matrix(1:nrow(dataAll)~ ., data = dataAll)[-1,-1]
+    testX <- model.matrix(1:nrow(dataAll)~ ., data = dataAll)[1,-1]
+  } else{
+    trainX <- model.matrix(1:nrow(trainX)~ ., data = trainX)[,-1]
+    testX <- model.matrix(1:nrow(testX)~ ., data = testX)[,-1]
+  }
+  
+  if(class(testX)=="numeric"){
+    testX <- t(data.frame(testX))
+  }
+  
+  # Find the Gower Distance
+  gowerHold <- StatMatch::gower.dist( testX, trainX)
+  # For each row, find the k smallest
+  neighbors <- apply(gowerHold, 1, function(x) which(x %in% sort(x)[1:K]))
+  
+  if(class(neighbors)[1]=="integer"){
+    preds <- trainY[neighbors]
+  }
+  
+  # Take the mean to get the prediction
+  if(class(neighbors)[1]=="matrix"){
+    preds <- apply(neighbors, 2,function(x) mean(trainY[x]))
+  }
+  
+  if(class(neighbors)[1]=="list"){
+    preds <- lapply(neighbors, function(x) mean(trainY[x]))
+    preds <- unlist(preds)
+  }
+  # Return the predictions
+  unlist(preds)
+}
+```
+
+
+```{r}
+# Create a storage space to hold the value of K and the
+# validation RMSE for that choice of K
+
+bestK <- data.frame("k"=1:30, "RMSE"=rep("NA",30))
+
+# Outer Loop
+for( k in 1:30){
+
+  # Create a storage space to hold the predictions from 
+  # LOOCV
+  
+  YHatKnn <- data.frame("Wins" = rep(NA,nrow(MLB3)))
+
+  # Inner Loop
+  for( f in 1:nrow(MLB3)){ 
+
+    # Step 2
+    # Take the f row and store them as validation data
+    validation <- MLB3[f,]
+    # Take the rest of the rows and store them as training data
+    training <- MLB3[-f,]
+    
+    # Step 3
+    # Build the k-NN on the training data set
+    model <- knnGower(training, validation, training$W, K = k)
+
+    # Step 4
+    YHatKnn[f, ] <- model
+
+  }
+  bestK[k,2] <- round(compute_RMSE(MLB3$W, YHatKnn$Wins),4)
+}
+```
+
+#### Table 3.1
+```{r}
+knitr::kable( bestK ) #puts Ks into a readable table
+```
+
+```{r}
+### Run KNN with best K (K=12)
+
+  # Create a storage space to hold the predictions from 
+  # LOOCV
+  
+  YHatKnnF <- data.frame("Wins" = rep(NA,nrow(MLB3)))
+
+  # Inner Loop
+  for( f in 1:nrow(MLB3)){ 
+
+    # Step 2
+    # Take the f row and store them as validation data
+    validation <- MLB3[f,]
+    # Take the rest of the rows and store them as training data
+    training <- MLB3[-f,]
+    
+    # Step 3
+    # Build the k-NN on the training data set
+    model <- knnGower(training, validation, training$W, K = 12)
+
+    # Step 4
+    YHatKnnF[f, ] <- model
+  }
+```
+
+```{r}
+# Percent Increase from Root node/Coefficients being zero
+(1.4996 - 3.3637)/3.3637
+```
+
+### Table 3.2
++------------------+--------+------------+
+| Method           | RMSE   | % Decrease |
++------------------+--------+------------+
+| Mean             | 3.3637 | 0.0%       |
++------------------+--------+------------+
+| Elastic Net      | 1.4725 | 56.22%     |
++------------------+--------+------------+
+| Random Forest    | 0.6492 | 80.70%     |
++------------------+--------+------------+
+| KNN              | 1.4996 | 55.42%     |
++------------------+--------+------------+
+
+```{r}
+# Observed vs fitted values
+observed_values <- MLB3$W
+fitted_values <- YHatKnnF$Wins
+
+plot(observed_values, fitted_values, xlab = "True Wins", ylab = "Predicted Wins", main = "Figure 3.1") #create the residual plot
+abline(lm(fitted_values ~ observed_values), col = "red") #line of best fit
+```
